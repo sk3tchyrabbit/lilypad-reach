@@ -148,6 +148,27 @@ let form=forms[0]; form.g.visible=true;
 const hud=document.getElementById('forms');
 forms.forEach(f=>{const b=document.createElement('button');b.type='button';b.innerHTML=`<kbd>${f.key}</kbd>${f.name}`;b.onclick=()=>{setForm(f);canvas.focus()};f.btn=b;hud.appendChild(b)});
 
+// ---------- the blacksmith: replaces the blocky Person once his model has loaded
+{const f=forms[1],gq=new THREE.Quaternion(),bq=new THREE.Quaternion();
+ loader.load('blacksmith.glb',gl=>{const m=gl.scene;m.rotation.y=Math.PI;f.g.add(m);f.g.updateWorldMatrix(true,true);f.g.getWorldQuaternion(gq).invert();
+  const B={};m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=false;o.material.metalness=0}if(o.isBone){o.getWorldQuaternion(bq);const rel=gq.clone().multiply(bq);B[o.name.replace(/[^a-zA-Z]/g,'')]={b:o,rest:o.quaternion.clone(),rel,inv:rel.clone().invert()}}});
+  f.g.children.forEach(c=>{if(c!==m)c.visible=false});f.rig={B,m,air:0,move:0,swim:0}},undefined,e=>console.warn('blacksmith model failed, keeping the simple person',e))}
+const rigE=new THREE.Euler(),rigQ=new THREE.Quaternion();
+// rotate a joint in the character's own space: +x swings a limb forward, whatever way the bone points
+function pose(B,n,x=0,y=0,z=0){const j=B[n];if(!j)return;rigQ.setFromEuler(rigE.set(x,y,z));j.b.quaternion.copy(j.rest).multiply(j.inv).multiply(rigQ).multiply(j.rel)}
+function animateRig(r,dt,t,hs){const B=r.B,k=Math.min(1,dt*10);
+ r.move+=(Math.min(1,hs/6)-r.move)*k;r.air+=((ground||inWater?0:1)-r.air)*k;r.swim+=((inWater?1:0)-r.swim)*k;
+ const run=THREE.MathUtils.clamp((hs-7)/4,0,1),mv=r.move*(1-r.air)*(1-r.swim),a=r.air*(1-r.swim),w=r.swim,s=Math.sin(walk),c=Math.cos(walk),br=Math.sin(t*1.8)*.018,kick=Math.sin(t*9)*.28;
+ const swing=mv*(.62+run*.3),knee=mv*(.95+run*.35),tuck=.13*mv;
+ pose(B,'thighL',s*swing+a*.75+w*kick,0,tuck);pose(B,'thighR',-s*swing-a*.25-w*kick,0,-tuck);
+ pose(B,'shinL',-Math.max(0,c)*knee-mv*.1-a*1.05,0,0);pose(B,'shinR',-Math.max(0,-c)*knee-mv*.1-a*.45,0,0);
+ pose(B,'footL',Math.max(0,c)*mv*.3+a*.3);pose(B,'footR',Math.max(0,-c)*mv*.3+a*.1);
+ pose(B,'hips',-mv*.05,s*mv*.1,Math.cos(walk*2)*mv*.02);pose(B,'spine',-mv*(.07+run*.09)+br,-s*mv*.1,0);pose(B,'chest',-mv*run*.06+br+a*.08,-s*mv*.08,0);
+ pose(B,'neck',mv*.05);pose(B,'head',mv*.06,-.42,0);
+ const lA=-s*mv*(.5+run*.3)+a*.9+w*(1.5+Math.sin(t*6)*.5),rA=s*mv*.28+a*.35+w*(1.5-Math.sin(t*6)*.5);
+ pose(B,'upperarmL',lA,0,-a*.35-.04);pose(B,'upperarmR',rA,0,a*.35+.04);pose(B,'forearmL',.12+mv*(.3+run*.5)+a*.4);pose(B,'forearmR',.12+mv*(.22+run*.35)+a*.3);
+ r.m.position.y=-Math.abs(c)*mv*.05+mv*.03;r.m.position.z=0}
+
 // splash particles
 const PN=160, pPos=new Float32Array(PN*3), pVel=[], pGeo=new THREE.BufferGeometry(); pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
 for(let i=0;i<PN;i++){pVel.push({v:new THREE.Vector3(),t:0});pPos[i*3+1]=-999}
@@ -344,6 +365,7 @@ function step(dt){
   if(f===forms[0]){const st=THREE.MathUtils.clamp(squash+Math.abs(vel.y)*.012,.4,1.7);f.g.scale.set(mk/Math.sqrt(st),mk*st,mk/Math.sqrt(st));slimeU.uT.value=t;const j=Math.min(1,hs*.05+Math.abs(squashV)*.1+Math.abs(vel.y)*.02);slimeU.uJig.value+=(j-slimeU.uJig.value)*Math.min(1,dt*7);slimeU.uPress.value=charge;slimeU.uDir.value.set(0,0,-hs*.05).applyAxisAngle(new THREE.Vector3(0,1,0),0)}
   else f.g.scale.setScalar(mk);
   if(ground)walk+=hs*dt*2.4;
+  if(f.rig)animateRig(f.rig,dt,t,hs);
   if(f.leg){const s=Math.sin(walk)*Math.min(1,hs*.2);f.leg[0].rotation.x=s;f.leg[1].rotation.x=-s;f.arm[0].rotation.x=-s;f.arm[1].rotation.x=s;f.g.rotation.x=inWater?-1.2:0;f.g.position.y=inWater?.3:0}
   if(f===forms[2]){f.g.rotation.x=ground?0:THREE.MathUtils.clamp(vel.y*.03,-.5,.5);f.g.scale.y=mk*(ground?1+Math.abs(Math.sin(walk))*.0:1.15)}
   if(f.wg){flap*=Math.exp(-5*dt);const a=(ground?-.9:Math.sin(t*(flap>.1?26:4))*(.2+flap*.7)+.05);f.wg[0].rotation.z=-a;f.wg[1].rotation.z=a;f.g.rotation.x=ground?0:THREE.MathUtils.clamp(vel.y*.03,-.5,.4)}
