@@ -131,7 +131,7 @@ const forms=[];
 {const g=new THREE.Group(),skin=mat(0xd9a57f),cl=mat(0x28536b),cl2=mat(0x6e4a2e),hair=mat(0x2a1a12);
  const leg=[],arm=[];part(g,cap(.2,.5),cl,0,1.25,0);part(g,sph,skin,0,1.92,0,.21,.24,.22);part(g,sph,hair,0,2.0,.04,.23,.2,.23);
  for(const s of[-1,1]){const l=new THREE.Group();l.position.set(s*.11,.95,0);part(l,cap(.09,.6),cl2,0,-.42,0);g.add(l);leg.push(l);const a=new THREE.Group();a.position.set(s*.28,1.55,0);part(a,cap(.07,.5),cl,0,-.3,0);g.add(a);arm.push(a)}
- forms.push({key:'2',name:'Person',g,speed:7.5,jump:10,far:0,swim:4.5,air:.6,h:1,r:.45,land:1,leg,arm})}
+ forms.push({key:'2',name:'Person',g,speed:7.5,jump:12,far:0,swim:4.5,air:.6,h:1.9,r:.6,land:1,leg,arm,look:3})}
 {const g=new THREE.Group(),m=mat(0x4f9a3e,{roughness:.4}),b=mat(0xd8e2a0);
  part(g,sph,m,0,.45,0,.62,.42,.8);part(g,sph,b,0,.32,-.1,.5,.3,.66);for(const s of[-1,1]){part(g,sph,m,s*.3,.84,-.42,.16,.16,.16);part(g,sph,mat(0x101510),s*.34,.87,-.54,.08,.08,.05);part(g,sph,m,s*.58,.28,.3,.2,.3,.5);part(g,sph,m,s*.7,.08,.0,.2,.07,.5);part(g,sph,m,s*.42,.14,-.5,.1,.14,.1)}
  forms.push({key:'3',name:'Frog',g,speed:7,jump:30,far:15,swim:8,air:.9,h:.6,r:.6,land:1})}
@@ -150,14 +150,14 @@ forms.forEach(f=>{const b=document.createElement('button');b.type='button';b.inn
 
 // ---------- the blacksmith: replaces the blocky Person once his model has loaded
 {const f=forms[1];
- loader.load('blacksmith.glb',gl=>{const m=gl.scene;m.scale.setScalar(2.15/.98);m.rotation.y=Math.PI;m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=false}});
+ loader.load('blacksmith.glb',gl=>{const m=gl.scene;m.scale.setScalar(4.3/.98);m.rotation.y=Math.PI;m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=false}});
   f.g.children.forEach(c=>c.visible=false);f.g.add(m);
   const mx=new THREE.AnimationMixer(m),A={};gl.animations.forEach(c=>{const a=mx.clipAction(c);a.play();a.setEffectiveWeight(c.name==='idle'?1:0);A[c.name]=a});
   f.rig={mx,A,w:{idle:1,walk:0,run:0,swim:0}}},undefined,e=>console.warn('blacksmith model failed, keeping the simple person',e))}
 // idle, walk, run and swim are Tripo clips; mid-air he holds a slowed run stride
 function animateRig(r,dt,hs){const air=!ground&&!inWater,want=inWater?'swim':air?'run':hs<.6?'idle':hs<5?'walk':'run',k=Math.min(1,dt*9);
  for(const n in r.w){r.w[n]+=((n===want?1:0)-r.w[n])*k;r.A[n].setEffectiveWeight(r.w[n])}
- r.A.run.timeScale=air?.12:THREE.MathUtils.clamp(hs/7.5,.6,1.5);r.A.walk.timeScale=THREE.MathUtils.clamp(hs/3.5,.6,1.5);
+ r.A.run.timeScale=air?.12:THREE.MathUtils.clamp(hs/10,.5,1.3);r.A.walk.timeScale=THREE.MathUtils.clamp(hs/6,.5,1.3);
  r.mx.update(dt)}
 
 // splash particles
@@ -364,7 +364,7 @@ function step(dt){
   // ship bob
   shipGroup.position.y=Math.sin(t*.7)*.14;shipGroup.rotation.z=Math.sin(t*.53)*.012;shipGroup.rotation.x=Math.sin(t*.41)*.009;
   // camera
-  const look=pos.clone().add(new THREE.Vector3(0,1.5,0));const cd=new THREE.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));
+  const look=pos.clone().add(new THREE.Vector3(0,form.look||1.5,0));const cd=new THREE.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));
   let want=indoor?Math.min(dist,6.5):dist;ray.set(look,cd);ray.far=want;const hit=ray.intersectObjects(act,false);if(hit.length)want=Math.max(2.4,hit[0].distance-.5);
   camD+=(want-camD)*Math.min(1,dt*(want<camD?14:4));
   camera.position.copy(look).addScaledVector(cd,camD);if(camera.position.y<.5&&!inWater)camera.position.y=.5;camera.lookAt(look);
