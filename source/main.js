@@ -82,12 +82,14 @@ async function load(n){const r=await fetch(n+'.json');if(!r.ok)throw new Error('
   d.setUint32(0,0x46546C67,true);d.setUint32(4,2,true);d.setUint32(8,out.length,true);d.setUint32(12,jl,true);d.setUint32(16,0x4E4F534A,true);out.set(enc,20);out.fill(32,20+enc.length,20+jl);d.setUint32(20+jl,bl,true);d.setUint32(24+jl,0x004E4942,true);out.set(bin,28+jl);
   prog[n]=1;barEl.style.width=(Object.keys(prog).length*50)+'%';return new Promise((res,rej)=>loader.parse(out.buffer,'./',res,rej))}
 const prog={};
+let cityAdd=[];
 async function init(){
   const [city,ship]=await Promise.all([load('city'),load('ship')]);
   city.scene.scale.setScalar(CITY.scale);city.scene.position.y=CITY.y;city.scene.updateMatrixWorld(true);
   city.scene.traverse(o=>{if(!o.isMesh)return;o.castShadow=true;o.receiveShadow=true;o.material.side=THREE.DoubleSide;o.material.envMapIntensity=.9;matsEnv.push([o.material,.9]);hookCity(o.material);cityMeshes.push(o);
     if(o.material.map)o.material.map.anisotropy=8;
-    o.geometry.boundsTree=new MeshBVH(o.geometry);colliders.push(o)});
+    const cg=new THREE.BufferGeometry();cg.setAttribute('position',o.geometry.attributes.position);cg.setIndex(o.geometry.index);cg.boundsTree=new MeshBVH(cg);const cm=new THREE.Mesh(cg,new THREE.MeshBasicMaterial({visible:false,side:THREE.DoubleSide}));(cityAdd=[...cityAdd,[o.parent,cm]]);cm.position.copy(o.position);cm.quaternion.copy(o.quaternion);cm.scale.copy(o.scale);colliders.push(cm)});
+  cityAdd.forEach(([q,cm])=>{q.add(cm);cm.updateWorldMatrix(true,false)});
   scene.add(city.scene);
   shipGroup.position.set(SHIP.x,0,SHIP.z);shipGroup.rotation.y=SHIP.yaw;
   ship.scene.scale.setScalar(SHIP.scale);ship.scene.position.y=-.2;
@@ -141,7 +143,7 @@ const forms=[];
  part(g,sph,m,0,.5,0,.44,.44,1.25);part(g,sph,b,0,.36,-.1,.33,.3,1.05);part(g,new THREE.ConeGeometry(.15,.5,8).rotateX(-Math.PI/2),m,0,.46,-1.4);
  part(g,new THREE.ConeGeometry(.3,.6,4),m,0,1,.15,.2,1,1).rotation.x=.4;for(const s of[-1,1]){const f=part(g,sph,m,s*.48,.3,-.3,.42,.05,.2);f.rotation.z=s*.5}
  part(g,sph,m,0,.5,1.3,.42,.06,.2);forms.push({key:'5',name:'Dolphin',g,speed:3.5,jump:7,far:0,swim:22,air:.45,h:.5,r:.6,land:.4,leap:true})}
-forms.forEach(f=>{f.g.visible=false;P.add(f.g)});
+forms.forEach((f,i)=>{f.g.visible=false;P.add(f.g);f.wj=[36,28,38,24,42][i]});
 let form=forms[0]; form.g.visible=true;
 const hud=document.getElementById('forms');
 forms.forEach(f=>{const b=document.createElement('button');b.type='button';b.innerHTML=`<kbd>${f.key}</kbd>${f.name}`;b.onclick=()=>{setForm(f);canvas.focus()};f.btn=b;hud.appendChild(b)});
@@ -295,8 +297,8 @@ addEventListener('keydown',e=>{if(e.repeat)return;keys[e.code]=1;
  else if(e.code==='Space')tryJump(1)});
 addEventListener('keyup',e=>{keys[e.code]=0;if(e.code==='Space'&&charge>0){tryJump(.72+charge*.75);charge=0}});
 function tryJump(p){
+  if(inWater){if(pos.y>-3.2){vel.y=form.wj;pos.y=Math.max(pos.y,-.2);const f=dirInput();vel.x+=f.x*8;vel.z+=f.z*8;burst(pos,40,5,9)}return}
   if(form.fly&&!ground){vel.y=Math.max(vel.y,0)+7;flap=1;return}
-  if(inWater){if(pos.y>-1.2){vel.y=form.leap?19:form.jump*.75;burst(pos,24,4,6)}return}
   if(ground||coyote>0){vel.y=form.jump*p;const f=dirInput();if(form.far){vel.x+=f.x*form.far*p;vel.z+=f.z*p*form.far}ground=false;coyote=0;squashV=4.5;burst(pos,14,3,2)}
 }
 function dirInput(){const f=(down('KeyW')||down('ArrowUp')?1:0)-(down('KeyS')||down('ArrowDown')?1:0),r=(down('KeyD')||down('ArrowRight')?1:0)-(down('KeyA')||down('ArrowLeft')?1:0);const s=Math.sin(yaw),c=Math.cos(yaw);const v=new THREE.Vector3(-s*f+c*r*1,0,-c*f-s*r);if(v.lengthSq()>1)v.normalize();return v}
@@ -305,9 +307,9 @@ addEventListener('mousemove',e=>{if(document.pointerLockElement!==canvas&&!(e.bu
 addEventListener('wheel',e=>{dist=THREE.MathUtils.clamp(dist+e.deltaY*.01,5,30)},{passive:true});
 function size(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}addEventListener('resize',size);size();
 
-const down3=new THREE.Vector3(0,-1,0),tmp=new THREE.Vector3(),hdirs=[0,1,2,3,4,5,6,7].map(i=>new THREE.Vector3(Math.cos(i*Math.PI/4),0,Math.sin(i*Math.PI/4)));
+const down3=new THREE.Vector3(0,-1,0),tmp=new THREE.Vector3(),hdirs=[...Array(12).keys()].map(i=>new THREE.Vector3(Math.cos(i*Math.PI/6),0,Math.sin(i*Math.PI/6))),up3=new THREE.Vector3(0,1,0);
 function groundAt(p,up=1.2){ray.set(tmp.set(p.x,p.y+up,p.z),down3);ray.far=up+60;ray.firstHitOnly=true;const h=ray.intersectObjects(act,false);return h.length?h[0].point.y:-Infinity}
-function push(){const r=form.r;for(const hy of[.95,1.7])for(const d of hdirs){ray.set(tmp.set(pos.x,pos.y+hy,pos.z),d);ray.far=r+.15;const h=ray.intersectObjects(act,false);if(h.length&&Math.abs(h[0].face.normal.clone().transformDirection(h[0].object.matrixWorld).y)<.6&&h[0].face.normal.clone().transformDirection(h[0].object.matrixWorld).dot(d)<0){const n=r+.15-h[0].distance;pos.addScaledVector(d,-n);const vn=vel.dot(d);if(vn>0)vel.addScaledVector(d,-vn)}}}
+function push(){const r=form.r;for(const hy of[.55,1.1,1.7])for(const d of hdirs){ray.set(tmp.set(pos.x,pos.y+hy,pos.z),d);ray.far=r+.15;const h=ray.intersectObjects(act,false);if(h.length&&Math.abs(h[0].face.normal.clone().transformDirection(h[0].object.matrixWorld).y)<.6){const n=r+.15-h[0].distance;pos.addScaledVector(d,-n);const vn=vel.dot(d);if(vn>0)vel.addScaledVector(d,-vn)}}}
 function step(dt){
   const t=performance.now()/1000-t0;
   const inp=dirInput(),moving=inp.lengthSq()>.01; inWater=pos.y<-.25;
@@ -323,12 +325,13 @@ function step(dt){
     vel.y-=g*dt; if(form.fly&&vel.y<-6&&down('Space'))vel.y=-6;
   }
   if(charge>0)charge=Math.min(1,charge+dt*1.5);
-  pos.x+=vel.x*dt;pos.z+=vel.z*dt; const wasAir=!ground,prevVy=vel.y; push();
-  pos.y+=vel.y*dt;
-  const gy=groundAt(pos);ground=false;
-  if(vel.y<=0&&pos.y<=gy+.04&&gy>-1){pos.y=gy;vel.y=0;ground=true;coyote=.12;if(wasAir&&prevVy<-6){squashV=-Math.min(9,-prevVy*.42);burst(pos,Math.min(40,-prevVy*2|0),5,3)}}
-  else coyote=Math.max(0,coyote-dt);
-  if(vel.y>0){ray.set(tmp.set(pos.x,pos.y+form.h,pos.z),new THREE.Vector3(0,1,0));ray.far=1;const h=ray.intersectObjects(act,false);if(h.length&&h[0].distance<.7)vel.y=0}
+  const wasAir=!ground,prevVy=vel.y,wasGround=ground,ns=Math.min(14,Math.ceil(Math.max(Math.hypot(vel.x,vel.z),Math.abs(vel.y))*dt/.2)||1),sd=dt/ns;ground=false;
+  for(let i=0;i<ns;i++){pos.x+=vel.x*sd;pos.z+=vel.z*sd;push();
+    if(vel.y>0){ray.set(tmp.set(pos.x,pos.y+.3,pos.z),up3);ray.far=Math.max(.2,form.h*1.1-.3)+vel.y*sd+.05;const h=ray.intersectObjects(act,false);if(h.length)vel.y=0}
+    pos.y+=vel.y*sd;const gy=groundAt(pos,.7);
+    if(vel.y<=0&&gy>-1&&(pos.y<=gy+.04||(wasGround&&pos.y-gy<.4))){pos.y=gy;vel.y=0;ground=true;coyote=.12;if(wasAir&&prevVy<-6){squashV=-Math.min(9,-prevVy*.42);burst(pos,Math.min(40,-prevVy*2|0),5,3)}break}}
+  if(!ground)coyote=Math.max(0,coyote-dt);
+  if(indoor){const dx=pos.x-indoor.c[0],dz=pos.z-indoor.c[1],rr=Math.hypot(dx,dz),mx=indoor.R-.5-form.r;if(rr>mx){pos.x=indoor.c[0]+dx/rr*mx;pos.z=indoor.c[1]+dz/rr*mx}const f=indoor.built;if(pos.y<f.y0)pos.y=f.y0}
   if(!wasInWater&&inWater&&prevVy<-5)burst(pos,70,6,9); wasInWater=inWater;
   if(Math.hypot(pos.x,pos.z)>420){pos.x*=.995;pos.z*=.995}
   // soft-body spring

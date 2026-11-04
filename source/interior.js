@@ -56,6 +56,7 @@ function arc(cx,cz,r,y0,y1,a0,a1,inward){const n=Math.max(4,Math.ceil((a1-a0)/.1
 function ring(cx,cz,r0,r1,y){const n=64,p=[],ix=[],uv=[];for(let i=0;i<=n;i++){const a=i/n*Math.PI*2,c=Math.cos(a),s=Math.sin(a);p.push(cx+c*r0,y,cz+s*r0,cx+c*r1,y,cz+s*r1);uv.push(c*r0/4,s*r0/4,c*r1/4,s*r1/4)}for(let i=0;i<n;i++){const k=i*2;ix.push(k,k+2,k+1,k+1,k+2,k+3)}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(ix);g.computeVertexNormals();return g}
 // helical ribbon from a0 to a1 rising y0 → y1
 function helix(cx,cz,r0,r1,y0,y1,a0,a1){const n=56,p=[],ix=[];for(let i=0;i<=n;i++){const t=i/n,a=a0+(a1-a0)*t,y=y0+(y1-y0)*t,c=Math.cos(a),s=Math.sin(a);p.push(cx+c*r0,y,cz+s*r0,cx+c*r1,y,cz+s*r1)}for(let i=0;i<n;i++){const k=i*2;ix.push(k,k+2,k+1,k+1,k+2,k+3)}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setIndex(ix);return g}
+function helixWall(cx,cz,r,y0,y1,a0,a1,h){const n=40,p=[],ix=[];for(let i=0;i<=n;i++){const t=i/n,a=a0+(a1-a0)*t,y=y0+(y1-y0)*t,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;p.push(x,y,z,x,y+h,z)}for(let i=0;i<n;i++){const k=i*2;ix.push(k,k+1,k+2,k+2,k+1,k+3)}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setIndex(ix);return g}
 const norm=g=>{const n=g.index?g.toNonIndexed():g;n.deleteAttribute('uv');n.deleteAttribute('normal');n.computeVertexNormals();return n};
 
 export const H=4.6;
@@ -102,7 +103,7 @@ export function buildInterior(m,o){ // o:{c:[x,z],R,y0,levels,doorA,roof:[{level
       for(let i=0;i<48;i++){const a=i/48*Math.PI*2,d=Math.atan2(Math.sin(a-g0),Math.cos(a-g0));if(Math.abs(d)<.62)continue;bk.iron.push(box(.045,1.1,.045).translate(cx+Math.cos(a)*(R0+.1),y+.55,cz+Math.sin(a)*(R0+.1)))}
       col.push(norm(arc(cx,cz,R0+.1,y,y+1.25,g0+.62,g0+Math.PI*2-.62,false)))}
     // stairs up
-    if(l<L-1){const a0=o.stairA+l*o.turn,a1=a0+o.turn,ri=Math.max(1.5,R0-2.6),ro=R0+.02;col.push(norm(helix(cx,cz,ri,ro,y+.02,y+H,a0,a1)));
+    if(l<L-1){const a0=o.stairA+l*o.turn,a1=a0+o.turn,ri=Math.max(1.5,R0-2.6),ro=R0+.02;col.push(norm(helix(cx,cz,ri,ro,y+.02,y+H,a0,a1)));col.push(norm(helixWall(cx,cz,ri,y,y+H,a0,a1,1.3)));{const t0=.13,t1=.87;col.push(norm(helixWall(cx,cz,ro,y+H*t0,y+H*t1,a0+o.turn*t0,a0+o.turn*t1,1.3)))}
       const n=Math.ceil(o.turn*(ri+ro)/2/.55);for(let k=0;k<n;k++){const t=(k+.5)/n,a=a0+(a1-a0)*t,ang=-a;const st=box(ro-ri,.16,o.turn*ro/n+.08).translate((ri+ro)/2,0,0).applyMatrix4(new THREE.Matrix4().makeRotationY(ang)).translate(cx,y+t*H-.06,cz);bk.wood.push(st)}
       const under=helix(cx,cz,ri,ro,y-.18,y+H-.18,a0,a1);{const ix=under.index.array;for(let i=0;i<ix.length;i+=3){const t=ix[i+1];ix[i+1]=ix[i+2];ix[i+2]=t}under.computeVertexNormals()}bk.ceil.push(under);
       for(let k=0;k<26;k++){const t=k/26,a=a0+(a1-a0)*t;bk.iron.push(box(.05,1.15,.05).translate(cx+Math.cos(a)*(ri+.06),y+t*H+.55,cz+Math.sin(a)*(ri+.06)))}
